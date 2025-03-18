@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-query
+  labels:
+    {{- include "haystack-rag.labels" . | nindent 4 }}
+    app: {{ .Release.Name }}-query
+spec:
+  type: {{ .Values.service.query.type }}
+  ports:
+    - port: {{ .Values.service.query.port }}
+      targetPort: {{ .Values.service.query.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Release.Name }}-query

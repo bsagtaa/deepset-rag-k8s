@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-opensearch
+  labels:
+    {{- include "haystack-rag.labels" . | nindent 4 }}
+    app: {{ .Release.Name }}-opensearch
+spec:
+  serviceName: {{ .Release.Name }}-opensearch-headless
+  replicas: {{ .Values.opensearch.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-opensearch
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-opensearch
+        {{- include "haystack-rag.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /usr/share/opensearch/data"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+      containers:
+        - name: opensearch
+          image: "{{ .Values.image.opensearch.repository }}:{{ .Values.image.opensearch.tag }}"
+          imagePullPolicy: {{ .Values.image.opensearch.pullPolicy }}
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9300
+              name: transport
+            - containerPort: 9600
+              name: metrics
+          env:
+            - name: discovery.type
+              value: {{ if eq .Values.opensearch.replicas 1.0 }}"single-node"{{ else }}"zen"{{ end }}
+            - name: cluster.name
+              value: {{ .Release.Name }}-opensearch-cluster
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: bootstrap.memory_lock
+              value: "true"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: {{ .Values.opensearch.javaOpts | quote }}
+            - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: opensearch-password
+            {{- if gt .Values.opensearch.replicas 1.0 }}
+            - name: discovery.seed_hosts
+              value: {{ .Release.Name }}-opensearch-headless
+            - name: cluster.initial_master_nodes
+              value: {{ range $i, $e := until (int .Values.opensearch.replicas) }}{{ if $i }},{{ end }}{{ $.Release.Name }}-opensearch-{{ $i }}{{ end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.opensearch.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+          startupProbe:
+            httpGet:
+              path: /_cluster/health
+              port: http
+              scheme: HTTPS
+              httpHeaders:
+                - name: Authorization
+                  value: Basic {{ printf "%s:%s" "admin" "admin" | b64enc }}
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: http
+              scheme: HTTPS
+              httpHeaders:
+                - name: Authorization
+                  value: Basic {{ printf "%s:%s" "admin" "admin" | b64enc }}
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?wait_for_status=yellow&timeout=1s
+              port: http
+              scheme: HTTPS
+              httpHeaders:
+                - name: Authorization
+                  value: Basic {{ printf "%s:%s" "admin" "admin" | b64enc }}
+            periodSeconds: 10
+            initialDelaySeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.opensearch.storageClass }}
+        storageClassName: {{ .Values.opensearch.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.opensearch.storage }}

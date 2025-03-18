@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    {{- include "haystack-rag.labels" . | nindent 4 }}
+data:
+  nginx-frontend.conf: |
+    server {
+      listen 3000;
+      
+      location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+      }
+    }
+  
+  nginx-proxy.conf: |
+    server {
+      listen 8080;
+      
+      location / {
+        proxy_pass http://{{ .Release.Name }}-frontend:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+      }
+      
+      location /api/indexing/ {
+        rewrite ^/api/indexing/(.*) /$1 break;
+        proxy_pass http://{{ .Release.Name }}-indexing:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+      }
+      
+      location /api/query/ {
+        rewrite ^/api/query/(.*) /$1 break;
+        proxy_pass http://{{ .Release.Name }}-query:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+      }
+    }

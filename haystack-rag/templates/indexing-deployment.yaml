@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-indexing
+  labels:
+    {{- include "haystack-rag.labels" . | nindent 4 }}
+    app: {{ .Release.Name }}-indexing
+spec:
+  replicas: {{ .Values.replicaCount.indexing }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-indexing
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-indexing
+        {{- include "haystack-rag.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: indexing
+          image: "{{ .Values.image.indexing.repository }}:{{ .Values.image.indexing.tag }}"
+          imagePullPolicy: {{ .Values.image.indexing.pullPolicy }}
+          ports:
+            - containerPort: 8001
+              name: http
+          env:
+            {{- range $key, $value := .Values.environment.indexing }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: OPENSEARCH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: opensearch-user
+            - name: OPENSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: opensearch-password
+          volumeMounts:
+            - name: file-storage
+              mountPath: /app/files
+            - name: pipelines
+              mountPath: /app/pipelines
+          resources:
+            {{- toYaml .Values.resources.indexing | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: file-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-file-storage
+        - name: pipelines
+          emptyDir: {}
