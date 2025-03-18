@@ -19,15 +19,15 @@ opensearch:
 
 image:
   frontend:
-    repository: registry-name/haystack-frontend
+    repository: registry-arn/haystack-frontend
     tag: latest
     pullPolicy: IfNotPresent
   indexing:
-    repository: registry-name/haystack-indexing
+    repository: registry-arn/haystack-indexing
     tag: latest
     pullPolicy: IfNotPresent
   query:
-    repository: registry-name/haystack-query
+    repository: registry-arn/haystack-query
     tag: latest
     pullPolicy: IfNotPresent
   opensearch:
