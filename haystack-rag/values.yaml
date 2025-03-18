@@ -57,7 +57,7 @@ service:
     port: 9200
     targetPort: 9200
   nginx:
-    type: ClusterIP
+    type: NodePort
     port: 8080
     targetPort: 8080
 
