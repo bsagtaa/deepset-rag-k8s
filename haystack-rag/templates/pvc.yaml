@@ -1,0 +1,17 @@
+{{- if .Values.persistence.fileStorage.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-file-storage
+  labels:
+    {{- include "haystack-rag.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.fileStorage.accessMode }}
+  {{- if .Values.persistence.fileStorage.storageClass }}
+  storageClassName: {{ .Values.persistence.fileStorage.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.fileStorage.size }}
+{{- end }}

@@ -1,0 +1,135 @@
+replicaCount:
+  frontend: 2
+  indexing: 2
+  query: 2
+  nginx: 1
+  
+opensearch:
+  replicas: 1
+  storageClass: "" ##setting as default for now
+  storage: 5Gi
+  javaOpts: "-Xms512m -Xmx1g"
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+
+image:
+  frontend:
+    repository: registry-arn/haystack-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  indexing:
+    repository: registry-arn/haystack-indexing
+    tag: latest
+    pullPolicy: IfNotPresent
+  query:
+    repository: registry-arn/haystack-query
+    tag: latest
+    pullPolicy: IfNotPresent
+  opensearch:
+    repository: opensearchproject/opensearch
+    tag: 2.19.1
+    pullPolicy: IfNotPresent
+  nginx:
+    repository: nginx
+    tag: alpine
+    pullPolicy: IfNotPresent
+
+service:
+  frontend:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  indexing:
+    type: ClusterIP
+    port: 8001
+    targetPort: 8001
+  query:
+    type: ClusterIP
+    port: 8002
+    targetPort: 8002
+  opensearch:
+    type: ClusterIP
+    port: 9200
+    targetPort: 9200
+  nginx:
+    type: NodePort
+    port: 8080
+    targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: haystack.rag.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: nginx
+          port: 8080
+
+resources:
+  frontend:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  indexing:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  query:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  nginx:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+persistence:
+  fileStorage:
+    enabled: true
+    storageClass: ""
+    size: 5Gi
+    accessMode: ReadWriteMany
+
+environment:
+  indexing:
+    PYTHONUNBUFFERED: "1"
+    HOST: "0.0.0.0"
+    PORT: "8001"
+    OPENSEARCH_HOST: "{{ .Release.Name }}-opensearch"
+    OPENSEARCH_PORT: "9200"
+    OPENAI_API_KEY: sk-proj-999
+  query:
+    PYTHONUNBUFFERED: "1"
+    HOST: "0.0.0.0"
+    PORT: "8002"
+    OPENSEARCH_HOST: "{{ .Release.Name }}-opensearch"
+    OPENSEARCH_PORT: "9200"
+    OPENAI_API_KEY: sk-proj-999
+
+  frontend:
+    REACT_APP_HAYSTACK_API_URL: "/api"
+
+secrets:
+  opensearchUser:
+  opensearchPassword:
